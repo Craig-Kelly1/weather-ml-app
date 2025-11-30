@@ -1,23 +1,43 @@
-name: CD Pipeline
+name: Continuous Deployment
 
+# Run this workflow automatically after the "Continuous Integration" workflow finishes successfully
 on:
   workflow_run:
-    workflows: ["CI Pipeline"]
+    workflows: ["Continuous Integration"]
     types:
       - completed
+  # Allows you to run this workflow manually from the Actions tab for testing
+  workflow_dispatch:
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+  deploy-to-prod:
+    # Only run if the CI workflow succeeded (or if triggered manually)
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: self-hosted
 
     steps:
-      - name: Deploy to Production
-        uses: appleboy/ssh-action@v1.0.0
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Setup the SSH agent using the private key you stored in GitHub Secrets
+      - name: Set up SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          host: ${{ secrets.PROD_HOST }}
-          username: ubuntu
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            kubectl set image deployment/weather-app weather-app=${{ secrets.DOCKERHUB_USERNAME }}/weather-app:${{ github.event.workflow_run.head_sha }}
-            kubectl rollout status deployment/weather-app
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      # (g) Deploy passed builds to Kubernetes without disrupting service
+      - name: Deploy to Production Server via SSH
+        env:
+          # The DNS or IP of your Production Server
+          PROD_HOST: ec2-54-237-12-65.compute-1.amazonaws.com
+          DOCKER_USER: ${{ secrets.DOCKER_USERNAME }}
+        run: |
+          # 1. Add the server to known hosts to avoid "Host key verification failed" in the runner
+          ssh-keyscan -H $PROD_HOST >> ~/.ssh/known_hosts
+
+          # 2. Execute the Rolling Update command remotely
+          # This connects to Prod and tells Kubernetes to update the image
+          ssh ubuntu@$PROD_HOST "kubectl set image deployment/weather-ml-deployment weather-ml-container=$DOCKER_USER/weather-ml-app:${{ github.sha }} --record"
+
+          # 3. Verify the deployment status
+          ssh ubuntu@$PROD_HOST "kubectl rollout status deployment/weather-ml-deployment"
