@@ -23,7 +23,7 @@ jobs:
 
       - name: Deploy to Production Server via SSH
         env:
-           IP ADDRESS
+           #IP ADDRESS
           PROD_HOST: ec2-54-82-50-131.compute-1.amazonaws.com
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
