@@ -23,7 +23,7 @@ jobs:
 
       - name: Deploy to Production Server via SSH
         env:
-          PROD_HOST: ec2-54-82-50-131.compute-1.amazonaws.com
+          PROD_HOST: ec2-18-208-220-9.compute-1.amazonaws.com
         run: |
           # Connect to the Prod Server
           ssh -o StrictHostKeyChecking=no ubuntu@$PROD_HOST << EOF
